@@ -1,0 +1,196 @@
+registers:
+    A: 8
+    B: 8
+    PC: 8
+    Z: 1 (zero flag)
+    i: 8 (internal, general)
+    m: 2 (internal, microcode PC)
+    j: 2 (internal, determines jump behavior)
+    
+
+microcode:
+    mem read
+    mem write
+    stack read
+    stack write
+    update Z
+    addr = (2)
+        0 = none
+        1 = PC+1
+        2 = i
+        3 = B
+    bus = (3)
+        0 = none
+        1 = input
+        2 = A
+        3 = B
+        4 = i
+        5 = alu
+        6 = ??
+        7 = ??
+    store = (2)
+        0 = none
+        1 = A
+        2 = B
+        3 = i
+    jump = (2)
+        0 = PC+1
+        1 = i
+        2 = condition = (!Z) ? i : PC+2 (jump instructions are always 2 bytes)
+        3 = PC+2
+    out = (2)
+        0 = none
+        1 = A
+        2 = B
+        3 = ??
+
+    total = 16 bits
+    bit layout is in the same order
+        rwRW zaab bbss jjoo (in 4's)
+        rwRWz aa bbb ss jj oo (by group)
+
+instructions:
+    0: nop
+    1: ld A, n
+        addr = PC+1
+        bus = input
+        mem read
+        store = A
+        jump = PC+2
+    2: ld A, B
+        bus = B
+        store = A
+    3: swap A, B
+        bus = A
+        store = i
+        --
+        bus = B
+        store = A
+        --
+        bus = i
+        store = B
+    4: ld (n), A
+        addr = PC+1
+        bus = input
+        mem read
+        store = i
+        --
+        addr = i
+        out = A
+        mem write
+        jump = PC+2
+    5: ld A, (n)
+        addr = PC+1
+        bus = input
+        mem read
+        store = i
+        --
+        addr = i
+        bus = input
+        mem read
+        store = A
+        jump = PC+2
+
+    6: ld (B), A
+        addr = B
+        out = A
+        mem write
+    7: ld A, (B)
+        addr = B
+        bus = input
+        mem read
+        store = A
+
+    8: math op, A, B
+        bus = alu
+        store = A
+        update Z
+
+    9: jp n
+        addr = PC+1
+        bus = input
+        mem read
+        store = i
+        --
+        jump = i
+
+    A: jnz n
+        addr = PC+1
+        bus = input
+        mem read
+        store = i
+        --
+        jump = condition
+
+    B: idk
+
+    C: push A
+        out = A
+        stack write
+    D: push B
+        out = B
+        stack write
+    E: pop A
+        bus = input
+        stack read
+        store = A
+    F: pop B
+        bus = input
+        stack read
+        store = B
+
+
+instruction format:
+    first nibble = instruction type
+    second nibble = math operation
+
+
+microcode example:
+    ld (n), A
+        addr = PC+1 (1)
+        bus = input (1)
+        mem read
+        store = i (3)
+        --
+        addr = i (2)
+        out = A (1)
+        mem write
+        jump = PC+2 (3)
+
+    (layout reminder: rwRW zaab bbss jjoo)
+    microcode 1:      1000 0010 0111 0000
+    microcode 2:      0100 0100 0000 1101
+
+
+cpu states:
+    0 = reset
+    1 = load
+        read PC and load microcode
+            theres 3 things of microcode (thing = ROM with 4 bit input and 16 bit output)
+            all are indexed by the current instruction's first nibble
+            outputs are loaded into the 3 microcode registers
+        o reg = mem[PC]
+        m reg = 0
+        i reg = 0 (optional)
+    2 = run
+        execute microcode
+            addr = {none, PC+1, i, B}[addr value]
+            bus = {none, input, A, B, i, alu, ??, ??}[bus value]
+            out = {none, A, B, ??}[out value]
+            A = (store == A) ? bus : A
+            B = (store == B) ? bus : B
+            Z = (update Z) ? (alu==0) : Z
+            jump reg = jump value
+            set mem and stack read and write pins
+            m = m+1
+        move to jump mode if...
+            m+1 == 3 or
+            jump reg != 0
+    3 = jump
+        PC = {PC+1, i, (!Z)?i:PC+2, PC+2}[jump reg]
+
+what is PCnext?
+    option 1: always PC+2
+    option 2: determined by jump reg
+    option 3: some other way?
+    opt 2 sounds good
