@@ -1,36 +1,44 @@
 import re
+import sys
 
+value_pat = r'(?P<n>\w+)'
 insts = [
-    (r'nop', 0x00),
-    (r'call (?P<n>\w+)', 0x20),
-    (r'ld a, (?P<n>\w+)', 0x10),
-    (r'swap( a, b)?', 0x30),
-    (r'ld \(b\), a', 0x60),
-    (r'ld a, \(b\)', 0x70),
-    (r'ld \((?P<n>\w+)\), a', 0x40),
-    (r'ld a, \((?P<n>\w+)\)', 0x50),
-    (r'(math )?add', 0x80),
-    (r'(math )?sub', 0x81),
-    (r'(math )?and', 0x82),
-    (r'(math )?or',  0x83),
-    (r'(math )?xor', 0x84),
-    (r'jp (?P<n>\w+)', 0x90),
-    (r'jnz (?P<n>\w+)', 0xa0),
-    (r'ret', 0xb0),
-    (r'push a', 0xc0),
-    (r'push b', 0xd0),
-    (r'pop a', 0xe0),
-    (r'pop b', 0xf0),
+    (fr'nop', 0x00),
+    (fr'call {value_pat}', 0x20),
+    (fr'ld a, {value_pat}', 0x10),
+    (fr'swap( a, b)?', 0x30),
+    (fr'ld \(b\), a', 0x60),
+    (fr'ld a, \(b\)', 0x70),
+    (fr'ld \({value_pat}\), a', 0x40),
+    (fr'ld a, \({value_pat}\)', 0x50),
+    (fr'(math )?add', 0x80),
+    (fr'(math )?sub', 0x81),
+    (fr'(math )?and', 0x82),
+    (fr'(math )?or',  0x83),
+    (fr'(math )?xor', 0x84),
+    (fr'(math )?sl', 0x85),
+    (fr'(math )?sr', 0x86),
+    (fr'jp {value_pat}', 0x90),
+    (fr'jnz {value_pat}', 0xa0),
+    (fr'ret', 0xb0),
+    (fr'push a', 0xc0),
+    (fr'push b', 0xd0),
+    (fr'pop a', 0xe0),
+    (fr'pop b', 0xf0),
 ]
 fancy_insts = [
-    (r'^$', lambda m: []),
-    (r'ld b, (?P<n>\w+)', lambda m: [0x30,0x10,m['n'],0x30]), # swap, [ld A, n], swap again
-    (r'ld b, \((?P<n>\w+)\)', lambda m: [0x30,0x50,m['n'],0x30]), # same here, but with [ld A, (n)]
-    (r'db (?P<n>\w+)', lambda m: [m['n']]),
-    (r'ld \((?P<dst>\w+)\), \((?P<src>\w+)\)', lambda m: [0xc0, 0x50, m['src'], 0x40, m['dst'], 0xe0]), # [push A], [ld A, (src)], [ld (dst), A], [pop A]
-    (r'ld \((?P<dst>\w+)\), (?P<n>\w+)', lambda m: [0xc0, 0x10, m['n'], 0x40, m['dst'], 0xe0]), # [push A], [ld A, n], [ld (dst), A], [pop A]
-    (r'push', lambda m: [0xc0, 0xd0]), # push A then B
-    (r'pop', lambda m: [0xf0, 0xe0]), # pop B then A
+    (fr'^$', lambda m: []),
+    (fr'ld b, {value_pat}', lambda m: [0x31,0x10,m['n'],0x30]), # swap, [ld A, n], swap again
+    (fr'ld b, \({value_pat}\)', lambda m: [0x31,0x50,m['n'],0x30]), # same here, but with [ld A, (n)]
+    (fr'db {value_pat}', lambda m: [m['n']]),
+    (fr'ld \((?P<dst>\w+)\), \((?P<src>\w+)\)', lambda m: [0xc1, 0x50, m['src'], 0x40, m['dst'], 0xe0]), # [push A], [ld A, (src)], [ld (dst), A], [pop A]
+    (fr'ld \((?P<dst>\w+)\), {value_pat}', lambda m: [0xc0, 0x10, m['n'], 0x40, m['dst'], 0xe0]), # [push A], [ld A, n], [ld (dst), A], [pop A]
+    (fr'push', lambda m: [0xc0, 0xd0]), # push A then B
+    (fr'pop', lambda m: [0xf0, 0xe0]), # pop B then A
+    (fr'jp \+(?P<n>[0-9a-f]+)', lambda m: [0x90, len(out)+int(m['n'],16)]), # jump forwards by n bytes
+    (fr'jp -(?P<n>[0-9a-f]+)', lambda m: [0x90, len(out)-int(m['n'],16)]), # jump backwards by n bytes
+    (fr'jnz \+(?P<n>[0-9a-f]+)', lambda m: [0xa0, len(out)+int(m['n'],16)]), # jnz forwards by n bytes
+    (fr'jnz -(?P<n>[0-9a-f]+)', lambda m: [0xa0, len(out)-int(m['n'],16)]), # jnz backwards by n bytes
     # (r'halt', lambda m: [0x40, 0xfe]),
 ]
 
@@ -94,7 +102,7 @@ def asm_line(s:str):
 
     out.extend(to_add)
 
-with open("in.s",'r') as f:
+with open(sys.argv[1] if len(sys.argv) == 2 else "in.s",'r') as f:
     for line in f:
         asm_line(line)
 
@@ -107,6 +115,7 @@ for i in range(len(out)):
             out[i] = int(out[i], 16)
     except ValueError:
         print(f"damnnn {out[i]=}")
+        exit(1)
     c_out += f"ram[0x{i:02x}]=0x{out[i]:02x};\n"
 
 with open('out.h','w') as f:
@@ -120,3 +129,4 @@ with open("out.lst",'w') as f:
     f.write(lst)
 
 # print(labels)
+print("ok im done now")
