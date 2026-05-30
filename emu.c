@@ -58,8 +58,8 @@ mop_t MICROCODE_ROM[16][3] = {
     {(mop_t){0}, (mop_t){0}, (mop_t){0}},
     // 1: ld A, n
     {(mop_t){.addr=1, .bus=1, .mem_read=1, .store=1, .jump=3}, (mop_t){0}, (mop_t){0}},
-    // 2: ld A, B
-    {(mop_t){.bus=3, .store=1}, (mop_t){0}, (mop_t){0}},
+	// 2: call n
+{(mop_t){.addr=1, .bus=1, .mem_read=1, .store=3}, (mop_t){.out=3, .stack_write=1, .jump=1}, (mop_t){0}},
     // 3: swap A, B
     {(mop_t){.bus=2, .store=3}, (mop_t){.bus=3, .store=1}, (mop_t){.bus=4, .store=2}},
     // 4: ld (n), A
@@ -76,8 +76,8 @@ mop_t MICROCODE_ROM[16][3] = {
     {(mop_t){.addr=1, .bus=1, .mem_read=1, .store=3}, (mop_t){.jump=1}, (mop_t){0}},
     // A: jnz n
     {(mop_t){.addr=1, .bus=1, .mem_read=1, .store=3}, (mop_t){.jump=2}, (mop_t){0}},
-    // B: ??? (placeholder nop)
-    {(mop_t){0}, (mop_t){0}, (mop_t){0}},
+	// B: ret
+	{(mop_t){.bus=1, .stack_read=1, .store=3}, (mop_t){.jump=1}, (mop_t){0}},
     // C: push A
     {(mop_t){.out=1, .stack_write=1}, (mop_t){0}, (mop_t){0}},
     // D: push B
@@ -91,7 +91,7 @@ mop_t MICROCODE_ROM[16][3] = {
 
 
 void cpu_do_reset(cpu_t* c) {
-	if (debug) printf("cpu reset\n");
+	/* if (debug) printf("cpu reset\n"); */
 	c->A = 0;
 	c->B = 0;
 	c->PC = 0;
@@ -105,7 +105,7 @@ void cpu_do_reset(cpu_t* c) {
 	c->code[2] = (mop_t){0};
 }
 void cpu_do_load(cpu_t* c) {
-	if (debug) printf("cpu load\n");
+	/* if (debug) printf("cpu load\n"); */
 	// read at PC
 	u8 opcode = c->memr(c->PC);
 	u8 inst = (opcode>>4) & 0x0f; // firt nibble
@@ -123,7 +123,7 @@ void cpu_do_load(cpu_t* c) {
 }
 
 void cpu_do_run(cpu_t* c) {
-	if (debug) printf("cpu run\n");
+	/* if (debug) printf("cpu run\n"); */
 	mop_t m = c->code[c->m];
 
 	// find addr_val
@@ -180,7 +180,7 @@ void cpu_do_run(cpu_t* c) {
 		case 0: out_val = 0; break;
 		case 1: out_val = c->A; break;
 		case 2: out_val = c->B; break;
-		/* case 3: out_val = ; break; */
+		case 3: out_val = c->PC+2; break;
 	}
 	if (m.mem_write) {
 		c->memw(addr_val, out_val);
@@ -195,7 +195,7 @@ void cpu_do_run(cpu_t* c) {
 }
 
 void cpu_do_jump(cpu_t* c) {
-	if (debug) printf("cpu jump\n");
+	/* if (debug) printf("cpu jump\n"); */
 	switch (c->j) {
 		case 0: c->PC = c->PC+1; break;
 		case 1: c->PC = c->i; break;

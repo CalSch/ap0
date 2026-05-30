@@ -2,7 +2,7 @@ import re
 
 insts = [
     (r'nop', 0x00),
-    (r'ld a, b', 0x20),
+    (r'call (?P<n>\w+)', 0x20),
     (r'ld a, (?P<n>\w+)', 0x10),
     (r'swap( a, b)?', 0x30),
     (r'ld \(b\), a', 0x60),
@@ -16,6 +16,7 @@ insts = [
     (r'(math )?xor', 0x84),
     (r'jp (?P<n>\w+)', 0x90),
     (r'jnz (?P<n>\w+)', 0xa0),
+    (r'ret', 0xb0),
     (r'push a', 0xc0),
     (r'push b', 0xd0),
     (r'pop a', 0xe0),
@@ -27,8 +28,10 @@ fancy_insts = [
     (r'ld b, \((?P<n>\w+)\)', lambda m: [0x30,0x50,m['n'],0x30]), # same here, but with [ld A, (n)]
     (r'db (?P<n>\w+)', lambda m: [m['n']]),
     (r'ld \((?P<dst>\w+)\), \((?P<src>\w+)\)', lambda m: [0xc0, 0x50, m['src'], 0x40, m['dst'], 0xe0]), # [push A], [ld A, (src)], [ld (dst), A], [pop A]
-    (r'push', lambda m: [0xc0, 0xd0]),
-    (r'pop', lambda m: [0xf0, 0xe0]),
+    (r'ld \((?P<dst>\w+)\), (?P<n>\w+)', lambda m: [0xc0, 0x10, m['n'], 0x40, m['dst'], 0xe0]), # [push A], [ld A, n], [ld (dst), A], [pop A]
+    (r'push', lambda m: [0xc0, 0xd0]), # push A then B
+    (r'pop', lambda m: [0xf0, 0xe0]), # pop B then A
+    # (r'halt', lambda m: [0x40, 0xfe]),
 ]
 
 out = []
@@ -44,33 +47,37 @@ def asm_line(s:str):
         s = s.split(';')[0]
     s = s.lower().strip()
 
+    #TODO: rename. this represents if we've assembled it already (to avoid accidentally assembling it twice, ex. as a normal inst *and* a fancy_inst)
+    found = False
+
     if re.match(r'\w+:', s):
         labels[s.removesuffix(":")] = len(out)
-        return
+        found = True
 
     to_add = []
 
-    found = False
-    for (pat, op) in insts:
-        if m := re.match(pat, s):
-            d = m.groupdict()
-            print(f"yeah ts is {pat}")
-            to_add.append(op)
-            if 'n' in d.keys():
-                to_add.append(d['n'])
-            found = True
-            break
-
-    for (pat, fn) in fancy_insts:
-        if m := re.match(pat, s):
-            d = m.groupdict()
-            print(f"wow ts is fancy: {pat}")
-            to_add.extend(fn(d))
-            found = True
-            break
+    if not found:
+        for (pat, op) in insts:
+            if m := re.match(pat, s):
+                d = m.groupdict()
+                print(f"yeah ts is {pat}")
+                to_add.append(op)
+                if 'n' in d.keys():
+                    to_add.append(d['n'])
+                found = True
+                break
 
     if not found:
-        print(f"omg idk what that means: {s}")
+        for (pat, fn) in fancy_insts:
+            if m := re.match(pat, s):
+                d = m.groupdict()
+                print(f"wow ts is fancy: {pat}")
+                to_add.extend(fn(d))
+                found = True
+                break
+
+    if not found:
+        print(f"\x1b[31m omg idk what that means: {s}") # the lack of color resetting is kinda intentional
 
     lst += f"PC={len(out):02x} | "
     for i in range(4):
