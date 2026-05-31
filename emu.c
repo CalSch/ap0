@@ -157,8 +157,8 @@ void cpu_do_run(cpu_t* c) {
 		case 2: alu_val = c->A & c->B; break;
 		case 3: alu_val = c->A | c->B; break;
 		case 4: alu_val = c->A ^ c->B; break;
-		case 5: alu_val = c->A >> 1; break;
-		case 6: alu_val = c->A << 1; break;
+		case 5: alu_val = c->A << 1; break;
+		case 6: alu_val = c->A >> 1; break;
 		case 7: alu_val = c->A; break;
 		default:
 			print_cpu(the_cpu);
