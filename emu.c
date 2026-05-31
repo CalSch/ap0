@@ -49,6 +49,8 @@ struct cpu_t {
 	void (*memw)(u8 addr, u8 data);
 	u8 (*pop)();
 	void (*push)(u8 val);
+	unsigned long cycles;
+	unsigned long instructions;
 };
 typedef struct cpu_t cpu_t;
 
@@ -117,6 +119,8 @@ void cpu_do_reset(cpu_t* c) {
 	c->code[0] = (mop_t){0};
 	c->code[1] = (mop_t){0};
 	c->code[2] = (mop_t){0};
+	c->cycles = 0;
+	c->instructions = 0;
 }
 void cpu_do_load(cpu_t* c) {
 	/* if (debug) printf("cpu load\n"); */
@@ -225,14 +229,15 @@ void cpu_do_jump(cpu_t* c) {
 }
 
 void cpu_do_tick(cpu_t* c) {
+	c->cycles++;
 	switch (c->mode) {
 		case MODE_RESET: cpu_do_reset(c); break;
 		case MODE_LOAD: cpu_do_load(c); break;
 		case MODE_RUN: cpu_do_run(c); break;
-		case MODE_JUMP: cpu_do_jump(c); break;
+		case MODE_JUMP: cpu_do_jump(c); c->instructions++; break;
 	}
 }
-void cpu_do_full_cycle(cpu_t* c) {
+void cpu_do_full_inst(cpu_t* c) {
 	cpu_do_tick(c);
 	while (c->mode != MODE_LOAD) {
 		cpu_do_tick(c);
@@ -257,6 +262,8 @@ void my_memw(u8 addr, u8 val) {
 		printf("output: %d / $%02x / '%c'\n", val, val, isprint(val)?val:' ');
 	} else if (addr==0xfe) {
 		printf("halt\n");
+		printf("cycles=%lu\n", the_cpu.cycles);
+		printf("insts=%lu\n", the_cpu.instructions);
 		exit(0);
 	}
 	ram[addr]=val;
@@ -295,7 +302,7 @@ int main(int argc, char** argv) {
 	print_cpu(the_cpu);
 	int i;
 	for (i=0;i<100000;i++) {
-		cpu_do_full_cycle(&the_cpu);
+		cpu_do_full_inst(&the_cpu);
 		if (debug) print_cpu(the_cpu);
 	}
 	printf("woah %d cycles? im done\n",i);
