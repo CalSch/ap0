@@ -52,6 +52,13 @@ struct cpu_t {
 };
 typedef struct cpu_t cpu_t;
 
+
+
+cpu_t the_cpu;
+
+
+
+
 // thx clud
 mop_t MICROCODE_ROM[16][3] = {
     // 0: nop
@@ -88,6 +95,13 @@ mop_t MICROCODE_ROM[16][3] = {
     {(mop_t){.bus=1, .stack_read=1, .store=2}, (mop_t){0}, (mop_t){0}},
 };
 
+void print_cpu(cpu_t c) {
+	printf("PC=%02x A=%02x B=%02x i=%02x Z=%d m=%d j=%d mode=%d\n",
+		c.PC, c.A, c.B, c.i, c.Z, c.m, c.j, c.mode);
+	for (int i=0;i<3;i++) {
+		/* printf("  code[%d]=%04x\n", i, c.code[i]); */
+	}
+}
 
 
 void cpu_do_reset(cpu_t* c) {
@@ -145,7 +159,9 @@ void cpu_do_run(cpu_t* c) {
 		case 4: alu_val = c->A ^ c->B; break;
 		case 5: alu_val = c->A >> 1; break;
 		case 6: alu_val = c->A << 1; break;
+		case 7: alu_val = c->A; break;
 		default:
+			print_cpu(the_cpu);
 			printf("WARNING! bad math value %d\n", c->o & 0xf0f);
 	}
 
@@ -223,13 +239,6 @@ void cpu_do_full_cycle(cpu_t* c) {
 	}
 }
 
-void print_cpu(cpu_t c) {
-	printf("PC=%02x A=%02x B=%02x i=%02x Z=%d m=%d j=%d mode=%d\n",
-		c.PC, c.A, c.B, c.i, c.Z, c.m, c.j, c.mode);
-	for (int i=0;i<3;i++) {
-		/* printf("  code[%d]=%04x\n", i, c.code[i]); */
-	}
-}
 
 
 u8 ram[256];
@@ -275,20 +284,19 @@ int main(int argc, char** argv) {
 
 #include "out.h"
 
-	cpu_t c;
-	c.memr = my_memr;
-	c.memw = my_memw;
-	c.pop = my_pop;
-	c.push = my_push;
-	c.mode = MODE_LOAD;
+	the_cpu.memr = my_memr;
+	the_cpu.memw = my_memw;
+	the_cpu.pop = my_pop;
+	the_cpu.push = my_push;
+	the_cpu.mode = MODE_LOAD;
 
-	cpu_do_reset(&c);
+	cpu_do_reset(&the_cpu);
 
-	print_cpu(c);
+	print_cpu(the_cpu);
 	int i;
 	for (i=0;i<100000;i++) {
-		cpu_do_full_cycle(&c);
-		if (debug) print_cpu(c);
+		cpu_do_full_cycle(&the_cpu);
+		if (debug) print_cpu(the_cpu);
 	}
 	printf("woah %d cycles? im done\n",i);
 
